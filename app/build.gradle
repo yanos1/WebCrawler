@@ -21,6 +21,8 @@ dependencies {
 
     // This dependency is used by the application.
     implementation 'com.google.guava:guava:32.1.2-jre'
+    implementation 'org.jsoup:jsoup:1.15.4'  // Check for the latest version
+
 }
 
 java {

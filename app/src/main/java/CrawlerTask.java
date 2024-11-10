@@ -12,6 +12,7 @@ public class CrawlerTask implements Callable<List<String>> {
     private final String url;
     private final CrawlerContext context;
 
+
     public CrawlerTask(String url, CrawlerContext context) {
         this.url = url;
         this.context = context;
@@ -26,6 +27,7 @@ public class CrawlerTask implements Callable<List<String>> {
     public List<String> call() throws IOException {
 
         String normalizedUrl = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+
         return HTMLDataExtractor.downloadAndExtractLinks(normalizedUrl, context);
     }
 

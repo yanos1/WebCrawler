@@ -1,64 +1,62 @@
 package main.java;
-
 import java.io.*;
-import java.net.URL;
-import java.net.HttpURLConnection;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.jsoup.Connection;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 /**
  * A utility class that provides static methods for HTML processing tasks.
  * It includes functionality for downloading a web page, extracting URLs, and saving the page content.
  */
 public class HTMLDataExtractor {
+    public static final int ERROR_HTTP_RESPONSE_CODE = 400;
 
-    // Regular expression pattern to match URLs within href attributes in HTML content
-    private static final Pattern URL_PATTERN = Pattern.compile(
-            "href=[\"'](http[s]?://(?:www\\.)?[a-zA-Z0-9.-]+(?:\\.[a-zA-Z]{2,})(?:/[^\"'<>]*)?" +
-                    "(?:\\?[^\s\"'<>]*)?)"  // need to remove kwrgs !
-    );
-
-    // Set of file extensions to exclude during URL extraction
-    private static final Set<String> EXCLUDED_EXTENSIONS = Set.of("png", "jpg", "jpeg", "gif", "bmp",
-            "pdf", "css", "js", "zip", "rar", "exe", "svg", "ico", "onion");
-
-    // Constant indicating the minimum response code that will be considered an error (4xx and 5xx)
-    public static final char ERROR_HTTP_RESPONSE_CODE = '4';
-
-
+    /**
+     *  downloads html content and extracts links from it.
+     * @param url the url to extract its content
+     * @param context the current crawl context
+     * @return return the list of new urls fetched from the url
+     * @throws IOException
+     */
     public static List<String> downloadAndExtractLinks(String url, CrawlerContext context) throws IOException {
         List<String> extractedUrls = new ArrayList<>();
 
-
         var connection = openConnection(url);
-
+        Document htmlDocument = connection.get();
         File file = prepareOutputFile(url, context);
 
         try {
-            BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-            processHtmlContent(in, writer, context, extractedUrls);
+            downloadHtmlToFile(htmlDocument, file , url);  // IMPORTANT NOTE: it is probably best to let a new
+            extractUrls(htmlDocument, context, extractedUrls);
+            // thread handle this task. for simplicity reasons, i chose not to.
 
         } catch (FileNotFoundException e) {
             System.err.println("Error 404: Page not found for URL: " + url);
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("IOException while reading  from : " + url);
         }
 
         return extractedUrls;
     }
 
+    private static void downloadHtmlToFile(Document htmlDocument, File file, String url) throws IOException {
+        BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+        writer.write(htmlDocument.html());
+    }
+
     /*
      * Opens an HTTP connection to the specified URL.
      */
-    private static HttpURLConnection openConnection(String url) throws IOException {
-        URL u = new URL(url);
-        HttpURLConnection connection = (HttpURLConnection) u.openConnection();
-        connection.setRequestMethod("GET");
+    private static Connection openConnection(String url){
+        Connection connection = Jsoup.connect(url);
+        // Sets a user-agent string to mimic a real browser (helps avoid being blocked)
+        connection.userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+
         return connection;
     }
 
@@ -73,56 +71,38 @@ public class HTMLDataExtractor {
         return new File(directory, refactorUrl(url) + ".html");
     }
 
-    /*
-     * Processes the HTML content line by line, saving it to the output file and extracting valid URLs.
-     */
-    private static void processHtmlContent(BufferedReader reader, BufferedWriter writer,
-                                           CrawlerContext context, List<String> extractedUrls) throws IOException {
-        String inputLine;
+    private static void extractUrls(Document document,
+                                    CrawlerContext context, List<String> extractedUrls) throws IOException {
+        // Select all <a> tags with href attribute
+        Elements links = document.select("a[href]");
+
         int urlsFound = 0;
+        for (Element link : links) {
+            String foundUrl = link.attr("abs:href");
 
-        // Read HTML content line by line
-        while ((inputLine = reader.readLine()) != null) {
-            writer.write(inputLine);
-            writer.newLine();
+            if (!foundUrl.startsWith("http")) {
+                continue;
+            }
+            if (!context.reachedLastDepth() && urlsFound < context.getMaxUrlsPerLevel()) {
+                if (!isInvalidUrl(context, foundUrl)) {
+                    extractedUrls.add(foundUrl);
+                    context.addVisitedUrlThisLevel(foundUrl);
+                    urlsFound++;
 
-            // Only extract URLs if max depth and max URL count have not been reached
-            if (!context.reachedMaxDepth() && urlsFound < context.getMaxUrlsPerLevel()) {
-                // Add the count of newly extracted URLs
-                urlsFound += extractUrls(inputLine, context, extractedUrls, context.getMaxUrlsPerLevel() - urlsFound);
+                }
+            } else {
+                break;
             }
         }
     }
 
-    /*
-     * Extracts URLs from a line of HTML content, validating and adding them to the list if they meet criteria.
-     */
-    private static int extractUrls(String inputLine, CrawlerContext context,
-                                   List<String> extractedUrls, int maxUrlsToExtract) throws IOException {
-        Matcher matcher = URL_PATTERN.matcher(inputLine);
-        int urlsFound = 0;
 
-        // Find and validate URLs in the line up to the maxUrlsToExtract limit
-        while (matcher.find() && urlsFound < maxUrlsToExtract) {
-            String foundUrl = matcher.group(1);
-            System.out.println(foundUrl);
-
-            if (!isInvalidUrl(context, foundUrl)) {
-                extractedUrls.add(foundUrl);
-                context.addVisitedUrlThisLevel(foundUrl);
-                urlsFound++;
-                System.out.println("valid: " + foundUrl);
-            }
-        }
-        return urlsFound;
-    }
     /*
      * Determines if a URL is invalid based on several criteria such as file extensions,
      * HTTP response codes, and whether it has been visited before.
      */
     private static boolean isInvalidUrl(CrawlerContext context, String foundUrl) throws IOException {
-        return hasExcludedExtension(foundUrl) ||
-                isUrlGivingErrorCode(foundUrl) ||
+        return  isUrlGivingErrorCode(foundUrl) ||
                 context.isUrlVisitedThisLevel(foundUrl) ||
                 (context.isUniqueFlagActive() && context.isUrlVisitedCrossLevels(foundUrl));
     }
@@ -131,27 +111,15 @@ public class HTMLDataExtractor {
      * Checks if a URL returns an error HTTP response code
      */
     private static boolean isUrlGivingErrorCode(String stringUrl) throws IOException {
-        URL url = new URL(stringUrl);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        String responseCode = String.valueOf(connection.getResponseCode());
-        if (responseCode.charAt(0) >= ERROR_HTTP_RESPONSE_CODE) {
-            System.err.println("bad response code : " + responseCode + " for " + stringUrl);
+        Connection connection = Jsoup.connect(stringUrl).ignoreHttpErrors(true); // Ignore errors to retrieve status code
+        int responseCode = connection.execute().statusCode();
+
+        if (responseCode >= ERROR_HTTP_RESPONSE_CODE) {
             return true;
         }
         return false;
     }
 
-    /*
-     * Checks if the URL has a file extension in the list of excluded extensions.
-     */
-    private static boolean hasExcludedExtension(String url) {
-        int dotIndex = url.lastIndexOf('.');
-        if (dotIndex == -1) {
-            return false; // No extension
-        }
-        String extension = url.substring(dotIndex + 1).toLowerCase();
-        return EXCLUDED_EXTENSIONS.contains(extension);
-    }
 
     /*
      * Converts a URL to a sanitized string that can be safely used as a filename.
@@ -160,4 +128,5 @@ public class HTMLDataExtractor {
     private static String refactorUrl(String url) {
         return url.split("http[s]?://")[1].replaceAll("[^a-zA-Z0-9]", "_");
     }
+
 }

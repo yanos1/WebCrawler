@@ -35,6 +35,7 @@ public class WebCrawler {
         queue.add(startUrl);
 
         while (!queue.isEmpty() && !context.reachedMaxDepth()) {
+            System.out.println("Searching depth " + context.getCurrentDepth() + "...");
             int levelSize = queue.size();
             Queue<Future<List<String>>> futuresQueue = new LinkedBlockingQueue<>();
 
@@ -46,13 +47,12 @@ public class WebCrawler {
 
             int found = processFutures(futuresQueue, queue);
 
-            System.out.println("--- found " + found + " urls in depth " + context.getCurrentDepth());
-
+            context.incrementLinksFound(found);
             context.clearUrlsVisitedThisLevel();
             context.incrementCurrentDepth();
         }
-
         executor.shutdown();
+        context.printMetadata();
     }
 
     /**
