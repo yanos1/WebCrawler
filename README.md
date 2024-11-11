@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **WebCrawler** is a multithreaded web crawler that performs a search for URLs and downloads their HTML contents. The program uses **Breadth-First Search (BFS)** to explore the web and supports **multithreading** for efficient crawling.
+This **WebCrawler** is a multithreaded web crawler that performs a search for URLs and downloads their HTML contents. The program uses **Breadth-First Search (BFS)** to explore the web and supports **multithreading** for efficient crawling.
 
 ## Usage
 
