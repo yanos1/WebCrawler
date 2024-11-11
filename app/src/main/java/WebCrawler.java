@@ -29,26 +29,26 @@ public class WebCrawler {
      *
      * @param startUrl the starting URL for the crawl
      */
-    public void startCrawl(String startUrl) {
+    public void crawl(String startUrl) {
         Queue<String> queue = new LinkedList<>();
         queue.add(startUrl);
 
-        while (!queue.isEmpty() && !context.reachedMaxDepth()) {
-            System.out.println("Searching depth " + context.getCurrentDepth() + "...");
+        while (!queue.isEmpty() && !this.context.reachedMaxDepth()) {
+            System.out.println("Searching depth " + this.context.getCurrentDepth() + "...");
             int levelSize = queue.size();
             Queue<Future<List<String>>> futuresQueue = new LinkedBlockingQueue<>();
 
             for (int i = 0; i < levelSize; i++) {
                 String url = queue.poll();
-                futuresQueue.add(submitCrawlTask(url));
-                context.addVisitedUrlCrossLevels(url);
+                futuresQueue.add(createFuture(url));
+                this.context.addVisitedUrlCrossLevels(url);
             }
 
             int found = processFutures(futuresQueue, queue);
-            context.updateContext(found);
+            this.context.updateContext(found);
         }
-        executor.shutdown();
-        context.printMetadata();
+        this.executor.shutdown();
+        this.context.printMetadata();
     }
 
     /**
@@ -57,7 +57,7 @@ public class WebCrawler {
      * @param url the URL to crawl
      * @return a Future representing the task result
      */
-    private Future<List<String>> submitCrawlTask(String url) {
+    private Future<List<String>> createFuture(String url) {
         return executor.submit(new CrawlerTask(url, context));  // new thread created here
     }
 
@@ -83,7 +83,7 @@ public class WebCrawler {
                     }
 
                 } catch (InterruptedException | ExecutionException e) {
-                    e.printStackTrace();
+                    Thread.currentThread().interrupt();
                 }
             } else {
                 futuresQueue.add(future);

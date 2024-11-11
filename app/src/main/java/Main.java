@@ -1,6 +1,5 @@
 package main.java;
 
-import main.java.WebCrawler;
 import org.jsoup.Jsoup;
 
 import java.io.IOException;
@@ -37,29 +36,26 @@ public class Main {
             }
         }
 
-        // Validate maxUrlsPerPage
-        try {
-            int maxUrlsPerPage = Integer.parseInt(args[1]);
-            if (maxUrlsPerPage < MIN_URLS_PER_PAGE) {
-                throw new IllegalArgumentException(ERROR_MAX_URLS);
-            }
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(ERROR_MAX_URLS);
-        }
+        // Validate urls per page
+        validateIntegerWithLimit(args[1], MIN_URLS_PER_PAGE, ERROR_MAX_URLS);
 
-        // Validate maxDepth
-        try {
-            int maxDepth = Integer.parseInt(args[2]);
-            if (maxDepth < MIN_DEPTH) {
-                throw new IllegalArgumentException(ERROR_MAX_DEPTH);
-            }
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(ERROR_MAX_DEPTH);
-        }
+        // Validate depth
+        validateIntegerWithLimit(args[2], MIN_DEPTH, ERROR_MAX_DEPTH);
 
         // Validate urlUniqueness
         if (!args[3].equalsIgnoreCase("true") && !args[3].equalsIgnoreCase("false")) {
             throw new IllegalArgumentException(ERROR_URL_UNIQUENESS);
+        }
+    }
+
+    private static void validateIntegerWithLimit(String value, int minLimit, String errorMessage) {
+        try {
+            int parsedValue = Integer.parseInt(value);
+            if (parsedValue < minLimit) {
+                throw new IllegalArgumentException(errorMessage);
+            }
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(errorMessage);
         }
     }
 
@@ -76,7 +72,7 @@ public class Main {
             ExecutorService executor = Executors.newCachedThreadPool();
 
             WebCrawler webCrawler = new WebCrawler(context, executor);
-            webCrawler.startCrawl(startUrl);
+            webCrawler.crawl(startUrl);
 
         } catch (IllegalArgumentException e) {
             System.err.println("Argument error: " + e.getMessage());
@@ -84,5 +80,6 @@ public class Main {
             System.err.println("I/O error: " + e.getMessage());
         }
     }
+
 
 }
