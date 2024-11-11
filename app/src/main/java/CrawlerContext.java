@@ -20,6 +20,7 @@ public class CrawlerContext {
 
 
     public CrawlerContext(int maxUrlsPerLevel, int maxDepth, boolean urlUniqueness) {
+        // thread safe version of set
         this.visitedUrlsCrossLevel = Collections.synchronizedSet(new HashSet<>());
         this.visitedUrlsThisLevel = Collections.synchronizedSet(new HashSet<>());
 
@@ -27,8 +28,7 @@ public class CrawlerContext {
         this.maxDepth = maxDepth;
         this.currentDepth = 0;
         this.urlUniqueness = urlUniqueness;
-        this.maximumLinksToFind =
-                (int) (Math.pow(this.maxUrlsPerLevel, this.maxDepth+1)- 1) / (this.maxUrlsPerLevel - 1);
+        this.maximumLinksToFind = getMaximumLinksToFind();
         this.linksFound = 1;
 
     }
@@ -37,27 +37,22 @@ public class CrawlerContext {
         return this.urlUniqueness;
     }
 
-    public Set<String> getVisitedUrlsCrossLevel() {
-        return visitedUrlsCrossLevel;
-    }
-
     public int getMaxUrlsPerLevel() {
         return maxUrlsPerLevel;
-    }
-
-    public int getMaxDepth() {
-        return maxDepth;
     }
 
     public boolean isUrlVisitedCrossLevels(String url) {
         return visitedUrlsCrossLevel.contains(url);
     }
-    public boolean addVisitedUrlCrossLevels(String url) {
-        return visitedUrlsCrossLevel.add(url);  // Thread-safe addition to visited URLs
+
+    public void addVisitedUrlCrossLevels(String url) {
+        visitedUrlsCrossLevel.add(url);
     }
+
     public boolean isUrlVisitedThisLevel(String url) {
         return visitedUrlsThisLevel.contains(url);
     }
+
     public boolean addVisitedUrlThisLevel(String url) {
         return visitedUrlsThisLevel.add(url);  // Thread-safe addition to visited URLs
     }
@@ -66,10 +61,8 @@ public class CrawlerContext {
         return this.currentDepth;
     }
 
-    public void incrementCurrentDepth() {
-        this.currentDepth++;
-    }
-    public void clearUrlsVisitedThisLevel() {
+
+    private void clearUrlsVisitedThisLevel() {
         visitedUrlsThisLevel.clear();
     }
 
@@ -81,9 +74,6 @@ public class CrawlerContext {
         return this.currentDepth == this.maxDepth;
     }
 
-    public void incrementLinksFound(int amount) {
-        linksFound += amount;
-    }
 
     public void printMetadata() {
         double percentageLinksFound = ((double) linksFound / maximumLinksToFind) * 100;
@@ -95,6 +85,28 @@ public class CrawlerContext {
         System.out.println("Current depth reached: " + --currentDepth + " out of maximum depth " + maxDepth);
         System.out.println("Total unique URLs visited (cross levels): " + visitedUrlsCrossLevel.size());
         System.out.println("=========================");
+    }
+
+    public void updateContext(int found) {
+        incrementLinksFound(found);
+        clearUrlsVisitedThisLevel();
+        incrementCurrentDepth();
+    }
+
+
+    private int getMaximumLinksToFind() {
+        if (this.maxUrlsPerLevel == 1) {   // to avoid zero division.
+            return this.maxDepth + 1;
+        }
+        return (int) ((Math.pow(this.maxUrlsPerLevel, this.maxDepth + 1) - 1) / (this.maxUrlsPerLevel - 1));
+    }
+
+    private void incrementLinksFound(int amount) {
+        linksFound += amount;
+    }
+
+    private void incrementCurrentDepth() {
+        this.currentDepth++;
     }
 
 }

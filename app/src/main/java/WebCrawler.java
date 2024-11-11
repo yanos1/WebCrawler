@@ -14,13 +14,12 @@ public class WebCrawler {
     /**
      * Constructs a new WebCrawler with the specified parameters.
      *
-     * @param maxUrlsPerPage        the maximum number of URLs to crawl in a page.
-     * @param maxDepth       the maximum depth of the crawl
-     * @param urlUniqueness  whether to enforce URL uniqueness across all levels of the crawl
+     * @param context  the context object holding crawler state
+     * @param executor the executor service for managing crawl tasks
      */
-    public WebCrawler(int maxUrlsPerPage, int maxDepth, boolean urlUniqueness) {
-        this.executor = Executors.newCachedThreadPool();
-        this.context = new CrawlerContext(maxUrlsPerPage, maxDepth, urlUniqueness);
+    public WebCrawler(CrawlerContext context, ExecutorService executor) {
+        this.context = context;
+        this.executor = executor;
     }
 
     /**
@@ -41,18 +40,25 @@ public class WebCrawler {
 
             for (int i = 0; i < levelSize; i++) {
                 String url = queue.poll();
-                futuresQueue.add(executor.submit(new CrawlerTask(url, context)));  // new thread created here
+                futuresQueue.add(submitCrawlTask(url));
                 context.addVisitedUrlCrossLevels(url);
             }
 
             int found = processFutures(futuresQueue, queue);
-
-            context.incrementLinksFound(found);
-            context.clearUrlsVisitedThisLevel();
-            context.incrementCurrentDepth();
+            context.updateContext(found);
         }
         executor.shutdown();
         context.printMetadata();
+    }
+
+    /**
+     * Submits a crawl task for a given URL to the executor service.
+     *
+     * @param url the URL to crawl
+     * @return a Future representing the task result
+     */
+    private Future<List<String>> submitCrawlTask(String url) {
+        return executor.submit(new CrawlerTask(url, context));  // new thread created here
     }
 
     /**
@@ -63,38 +69,26 @@ public class WebCrawler {
      * @param queue        the main queue to add found URLs for further crawling
      * @return the number of URLs found during this level of the crawl
      */
-    private static int processFutures(Queue<Future<List<String>>> futuresQueue, Queue<String> queue) {
+    private int processFutures(Queue<Future<List<String>>> futuresQueue, Queue<String> queue) {
         int found = 0;
         while (!futuresQueue.isEmpty()) {
-            Future<List<String>> future = futuresQueue.poll();  // Get and remove the first future in the queue
+            Future<List<String>> future = futuresQueue.poll();
 
             if (future.isDone()) {
                 try {
                     List<String> foundUrls = future.get();
                     for (String newUrl : foundUrls) {
-                        queue.add(newUrl);  // Add the URLs to the queue for the next depth level
+                        queue.add(newUrl);
                         found++;
                     }
+
                 } catch (InterruptedException | ExecutionException e) {
                     e.printStackTrace();
                 }
             } else {
-                // Re-add unfinished futures to the end of the queue
                 futuresQueue.add(future);
             }
         }
         return found;
     }
 }
-
-
-// questions -
-//             if i found a link i found before, should i explore it?
-//
-//             social media links ok?
-
-//              too many request on a server, should i care?
-
-//
-
-

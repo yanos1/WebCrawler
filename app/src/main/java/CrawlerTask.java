@@ -19,7 +19,8 @@ public class CrawlerTask implements Callable<List<String>> {
     }
 
     /**
-     *  uses the HTMLDataExtractor Logic to complete the crawling task
+     * uses the HTMLDataExtractor Logic to complete the crawling task
+     *
      * @return a list of urls tha were found in the url
      * @throws IOException
      */
