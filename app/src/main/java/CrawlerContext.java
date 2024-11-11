@@ -53,8 +53,8 @@ public class CrawlerContext {
         return visitedUrlsThisLevel.contains(url);
     }
 
-    public boolean addVisitedUrlThisLevel(String url) {
-        return visitedUrlsThisLevel.add(url);  // Thread-safe addition to visited URLs
+    public void addVisitedUrlThisLevel(String url) {
+        visitedUrlsThisLevel.add(url);  // Thread-safe addition to visited URLs
     }
 
     public int getCurrentDepth() {
